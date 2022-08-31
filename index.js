@@ -60,10 +60,10 @@ function makeSlider(name, set_value, options) {
   document.querySelector('#controls').appendChild(div);
 }
 
-function makeAnalyser(name, audio, node) {
+function makeAnalyser(name, audio, node, timeDomain) {
   const div = document.createElement("div");
   const canvas = document.createElement("canvas");
-  canvas.width = 800;
+  canvas.width = 1024;
   canvas.height = 200;
   const ctx = canvas.getContext("2d");
 
@@ -75,19 +75,37 @@ function makeAnalyser(name, audio, node) {
   const data_array = new Uint8Array(buffer_len);
 
   const draw = () => {
-    analyser.getByteFrequencyData(data_array);
-
+    // Clear canvas
     ctx.fillStyle = 'rgb(200, 200, 200)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Render Frequency data
+    analyser.getByteFrequencyData(data_array);
 
     ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgb(0, 0, 0)';
     ctx.beginPath();
 
     const slice_width = canvas.width / buffer_len;
     let x = 0;
     for (let i = 0; i < buffer_len; i += 1) {
-      const y = data_array[i] / 256 * canvas.height;
+      const height = data_array[i] / 256 * canvas.height;
+
+      ctx.fillStyle = `rgb(${Math.floor(height + 100)}, 50, 50)`;
+      ctx.fillRect(x, canvas.height - height/2, slice_width, height/2);
+
+      x += slice_width;
+    }
+
+    // Render Time Domain data
+    analyser.getByteTimeDomainData(data_array);
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgb(0, 0, 0)';
+    ctx.beginPath();
+
+    x = 0;
+    for (let i = 0; i < buffer_len; i += 1) {
+      const y = data_array[i] / 128 * canvas.height / 2;
 
       if (i === 0) {
         ctx.moveTo(x, y);
@@ -100,6 +118,7 @@ function makeAnalyser(name, audio, node) {
 
     ctx.lineTo(canvas.width, canvas.height/2);
     ctx.stroke();
+
     requestAnimationFrame(draw);
   };
   requestAnimationFrame(draw);

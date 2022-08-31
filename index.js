@@ -1,30 +1,58 @@
 
-window.addEventListener("load", async () => {
+window.addEventListener("load", setup);
+
+async function setup() {
   const audio = new AudioContext();
-  await audio.audioWorklet.addModule("white-noise-processor.js");
+  await audio.audioWorklet.addModule("worklets.js");
 
   // Setup noise node
   let flame = createFlameNode(audio);
 
   let output_gain = audio.createGain();
-  output_gain.gain.value = 0.0;
+  output_gain.gain.value = 0.0001;
 
-  flame.connect(output_gain).connect(audio.destination);
+  flame.output
+    .connect(output_gain)
+    .connect(audio.destination);
 
   const play_button = document.querySelector("#play");
   play_button.addEventListener("click", () => {
-    if (audio.state === 'suspended') {
-      audio.resume();
-    }
-
-    output_gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 0.1);
+    audio.resume();
   });
 
   const mute_button = document.querySelector("#mute");
   mute_button.addEventListener("click", () => {
-    output_gain.gain.setValueAtTime(0, audio.currentTime);
+    audio.suspend();
   });
-});
+
+  makeSlider("Gain", output_gain.gain, { min: 0.0001, max: 0.5, step: 0.0001});
+}
+
+function makeSlider(name, param, options) {
+  const div = document.createElement("div");
+  const slider = document.createElement("input");
+  const display = document.createElement("input");
+
+  slider.type = "range";
+  slider.min = options.min ? options.min : 0.0;
+  slider.max = options.max ? options.max : 1.0;
+  slider.step = options.step ? options.step : 0.001;
+  slider.value = param.value;
+  slider.addEventListener('input', () => {
+    param.value = slider.value;
+    display.value = slider.value;
+  });
+
+  display.type = "text";
+  display.disabled = true;
+  display.value = slider.value;
+
+  div.innerHTML = `${name}`;
+  div.appendChild(slider);
+  div.appendChild(display);
+
+  document.querySelector('#controls').appendChild(div);
+}
 
 function createFlameNode(audio) {
   // Create nodes that will make up our flame
@@ -36,53 +64,53 @@ function createFlameNode(audio) {
   let output = audio.createGain();
 
   // Connect nodes
-  hissing
-    .connect(hissing_gain)
-    .connect(output);
-  
-  // Set values of nodes
-  hissing_gain.gain = 0.2;
+  hissing.output.connect(hissing_gain)
+  hissing_gain.connect(output);
 
-  return output;
+  // Set values of nodes
+  hissing_gain.gain.value = 0.001;
+
+  return {
+    hissing: hissing,
+    hissing_gain: hissing_gain,
+    output: output
+  };
 }
 
 function createHissingNode(audio, noise) {
   // Create nodes that will make up `Hissing`
-  let hip = audio.createBiquadFilter();
+  let nodes = {
+    hip: new AudioWorkletNode(audio, 'one-pole-highpass'),
 
-  let lop = audio.createBiquadFilter();
-  let gainX10 = audio.createGain();
-  let squared = audio.createGain();
-  let to_the_fourth_power = audio.createGain();
-  let gainX600 = audio.createGain();
+    lop: new AudioWorkletNode(audio, 'one-pole-lowpass'),
+    preamp: audio.createGain(),
+    squared: audio.createGain(),
+    to_the_fourth_power: audio.createGain(),
+    makeup: audio.createGain(),
 
-  let output = audio.createGain();
+    output: audio.createGain(),
+  };
 
   // Connect nodes
-  noise
-    .connect(hip)
-    .connect(output);
-  
-  noise
-    .connect(lop)
-    .connect(gainX10)
-    .connect(squared)
-    .connect(to_the_fourth_power)
-    .connect(gainX600)
-    .connect(output.gain);
+  noise.connect(nodes.hip)
+    .connect(nodes.output);
 
-  gainX10.connect(squared.gain);
-  squared.connect(to_the_fourth_power.gain);
+  noise.connect(nodes.lop)
+    .connect(nodes.preamp)
+    .connect(nodes.squared)
+    .connect(nodes.to_the_fourth_power)
+    .connect(nodes.makeup)
+    .connect(nodes.output.gain);
+
+  nodes.preamp.connect(nodes.squared.gain);
+  nodes.squared.connect(nodes.to_the_fourth_power.gain);
 
   // Set values of nodes
-  hip.type = "highpass";
-  hip.frequency.value = 1000;
-  
-  lop.type = "lowpass";
-  lop.frequency.value = 1;
-  
-  gainX10.gain.value = 10.0;
-  gainX600.gain.value = 600.0;
-  
-  return output;
+  nodes.hip.parameters['frequency'] = 1000;
+  nodes.lop.parameters['frequency'] = 1;
+  nodes.preamp.gain.value = 10.0;
+  nodes.makeup.gain.value = 600.0;
+
+  return nodes;
 }
+

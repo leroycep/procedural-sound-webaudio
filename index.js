@@ -9,7 +9,7 @@ async function setup() {
   let flame = createFlameNode(audio);
 
   let output_gain = audio.createGain();
-  output_gain.gain.value = 0.0001;
+  output_gain.gain.value = 0.103 * 0.103;
 
   flame.output
     .connect(output_gain)
@@ -25,10 +25,16 @@ async function setup() {
     audio.suspend();
   });
 
-  makeSlider("Gain", output_gain.gain, { min: 0.0001, max: 0.5, step: 0.0001});
+  makeSlider("Gain", (new_val) => output_gain.gain.value = (new_val * new_val), { step: 0.001, default: output_gain.gain.value });
+  makeSlider("Hissing", (new_val) => flame.hissing_gain.gain.value = new_val, { step: 0.001, default: flame.hissing_gain.gain.value });
+  makeSlider("Lapping", (new_val) => flame.lapping_gain.gain.value = new_val, { step: 0.001, default: flame.lapping_gain.gain.value });
+
+  makeAnalyser("Flame", audio, flame.output);
+  makeAnalyser("Hissing", audio, flame.hissing_gain);
+  makeAnalyser("Lapping", audio, flame.lapping_gain);
 }
 
-function makeSlider(name, param, options) {
+function makeSlider(name, set_value, options) {
   const div = document.createElement("div");
   const slider = document.createElement("input");
   const display = document.createElement("input");
@@ -37,9 +43,9 @@ function makeSlider(name, param, options) {
   slider.min = options.min ? options.min : 0.0;
   slider.max = options.max ? options.max : 1.0;
   slider.step = options.step ? options.step : 0.001;
-  slider.value = param.value;
+  slider.value = options.default;
   slider.addEventListener('input', () => {
-    param.value = slider.value;
+    set_value(slider.value);
     display.value = slider.value;
   });
 
@@ -54,39 +60,98 @@ function makeSlider(name, param, options) {
   document.querySelector('#controls').appendChild(div);
 }
 
+function makeAnalyser(name, audio, node) {
+  const div = document.createElement("div");
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 200;
+  const ctx = canvas.getContext("2d");
+
+  const analyser = audio.createAnalyser();
+  node.connect(analyser);
+
+  analyser.fftSize = 2048;
+  const buffer_len = analyser.frequencyBinCount;
+  const data_array = new Uint8Array(buffer_len);
+
+  const draw = () => {
+    analyser.getByteFrequencyData(data_array);
+
+    ctx.fillStyle = 'rgb(200, 200, 200)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgb(0, 0, 0)';
+    ctx.beginPath();
+
+    const slice_width = canvas.width / buffer_len;
+    let x = 0;
+    for (let i = 0; i < buffer_len; i += 1) {
+      const y = data_array[i] / 256 * canvas.height;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+
+      x += slice_width;
+    }
+
+    ctx.lineTo(canvas.width, canvas.height/2);
+    ctx.stroke();
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
+
+  div.innerHTML = `<h4>${name}</h4>`;
+  div.appendChild(canvas);
+
+  document.querySelector('#controls').appendChild(div);
+}
+
 function createFlameNode(audio) {
   // Create nodes that will make up our flame
   let noise = new AudioWorkletNode(audio, 'white-noise-processor');
 
-  let hissing = createHissingNode(audio, noise);
-  let hissing_gain = audio.createGain();
+  let nodes = {
+    noise: noise,
 
-  let output = audio.createGain();
+    hissing: createHissingNode(audio, noise),
+    hissing_gain: audio.createGain(),
+
+    lapping: createLappingNode(audio, noise),
+    lapping_gain: audio.createGain(),
+
+    output: audio.createGain(),
+  };
 
   // Connect nodes
-  hissing.output.connect(hissing_gain)
-  hissing_gain.connect(output);
+  nodes.hissing.output
+    .connect(nodes.hissing_gain)
+    .connect(nodes.output);
+
+  nodes.lapping.output
+    .connect(nodes.lapping_gain)
+    .connect(nodes.output);
 
   // Set values of nodes
-  hissing_gain.gain.value = 0.001;
+  nodes.hissing_gain.gain.value = 0.2;
+  nodes.lapping_gain.gain.value = 0.3;
 
-  return {
-    hissing: hissing,
-    hissing_gain: hissing_gain,
-    output: output
-  };
+  return nodes;
 }
 
 function createHissingNode(audio, noise) {
   // Create nodes that will make up `Hissing`
   let nodes = {
-    hip: new AudioWorkletNode(audio, 'one-pole-highpass'),
+    hip: new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: { frequency: 1000 } }),
 
-    lop: new AudioWorkletNode(audio, 'one-pole-lowpass'),
-    preamp: audio.createGain(),
+    lop: new AudioWorkletNode(audio, 'one-pole-lowpass', { parameterData: { frequency: 1 } }),
+    preamp: new GainNode(audio, { gain: 10 }),
     squared: audio.createGain(),
     to_the_fourth_power: audio.createGain(),
-    makeup: audio.createGain(),
+    makeup: new GainNode(audio, { gain: 600.0 }),
 
     output: audio.createGain(),
   };
@@ -105,12 +170,23 @@ function createHissingNode(audio, noise) {
   nodes.preamp.connect(nodes.squared.gain);
   nodes.squared.connect(nodes.to_the_fourth_power.gain);
 
-  // Set values of nodes
-  nodes.hip.parameters['frequency'] = 1000;
-  nodes.lop.parameters['frequency'] = 1;
-  nodes.preamp.gain.value = 10.0;
-  nodes.makeup.gain.value = 600.0;
-
   return nodes;
 }
 
+function createLappingNode(audio, noise) {
+  const bp_gain = new GainNode(audio, { gain: 100 });
+
+  const bp_lo = new AudioWorkletNode(audio, 'one-pole-lowpass', { parameterData: { frequency: 35 }});
+  const bp_hi = new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: { frequency: 25 }});
+
+  const output = noise
+    .connect(bp_lo)
+    .connect(bp_hi)
+    .connect(bp_gain)
+    .connect(new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: {frequency: 25} }))
+    .connect(new WaveShaperNode(audio, { curve: Float32Array.from([-0.9, 0.9]) }))
+    .connect(new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: {frequency: 25} }))
+    .connect(new GainNode(audio, { gain: 0.6 }));
+
+  return { bp_lo, bp_hi, bp_gain, output };
+}

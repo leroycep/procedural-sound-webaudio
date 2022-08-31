@@ -156,7 +156,7 @@ function createFlameNode(audio) {
 
   // Set values of nodes
   nodes.hissing_gain.gain.value = 0.2;
-  nodes.lapping_gain.gain.value = 0.3;
+  nodes.lapping_gain.gain.value = 0.6;
 
   return nodes;
 }

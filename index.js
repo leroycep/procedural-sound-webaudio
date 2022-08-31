@@ -25,9 +25,9 @@ async function setup() {
     audio.suspend();
   });
 
-  makeSlider("Gain", (new_val) => output_gain.gain.value = (new_val * new_val), { step: 0.001, default: output_gain.gain.value });
-  makeSlider("Hissing", (new_val) => flame.hissing_gain.gain.value = new_val, { step: 0.001, default: flame.hissing_gain.gain.value });
-  makeSlider("Lapping", (new_val) => flame.lapping_gain.gain.value = new_val, { step: 0.001, default: flame.lapping_gain.gain.value });
+  makeSlider("Gain", (new_val) => output_gain.gain.value = (new_val * new_val), { step: 0.001, default: Math.sqrt(output_gain.gain.value) });
+  makeSlider("Hissing", (new_val) => flame.hissing_gain.gain.value = new_val * new_val, { step: 0.001, default: Math.sqrt(flame.hissing_gain.gain.value) });
+  makeSlider("Lapping", (new_val) => flame.lapping_gain.gain.value = new_val * new_val, { step: 0.001, default: Math.sqrt(flame.lapping_gain.gain.value) });
 
   makeAnalyser("Flame", audio, flame.output);
   makeAnalyser("Hissing", audio, flame.hissing_gain);

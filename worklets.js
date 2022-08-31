@@ -23,17 +23,13 @@ class OnePoleProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.setCoefficients_(440);
+    this.z1_ = 0;
   }
 
   setCoefficients_(fHz) {
     let frequency = fHz / sampleRate;
     this.b1_ = Math.exp(-2 * Math.PI * frequency);
     this.a0_ = 1.0 - this.b1_;
-
-    if (this.fHz !== fHz) {
-      this.fHz = fHz;
-      this.z1_ = 0;
-    }
   }
 
   process (inputs, outputs, parameters) {
@@ -78,15 +74,11 @@ class OnePoleHighpassProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.setCoefficients_(440);
+    this.last = 0;
   }
 
   setCoefficients_(fHz) {
     this.coef = 1 - fHz * (2 * Math.PI) / sampleRate;
-
-    if (this.fHz !== fHz) {
-      this.fHz = fHz;
-      this.last = 0;
-    }
   }
 
   process (inputs, outputs, parameters) {

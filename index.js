@@ -9,7 +9,7 @@ async function setup() {
   let flame = createFlameNode(audio);
 
   let output_gain = audio.createGain();
-  output_gain.gain.value = 0.103 * 0.103;
+  output_gain.gain.value = 0.3;
 
   flame.output
     .connect(output_gain)
@@ -30,8 +30,8 @@ async function setup() {
   makeSlider("Lapping", (new_val) => flame.lapping_gain.gain.value = new_val * new_val, { step: 0.001, default: Math.sqrt(flame.lapping_gain.gain.value) });
 
   makeAnalyser("Flame", audio, flame.output);
-  makeAnalyser("Hissing", audio, flame.hissing_gain);
-  makeAnalyser("Lapping", audio, flame.lapping_gain);
+  makeAnalyser("Hissing", audio, flame.hissing.output);
+  makeAnalyser("Lapping", audio, flame.lapping.output);
 }
 
 function makeSlider(name, set_value, options) {
@@ -78,7 +78,7 @@ function makeAnalyser(name, audio, node, timeDomain) {
   const data_array = new Uint8Array(buffer_len);
 
   const MIN_FREQ = 0;
-  const MAX_FREQ = 19000;
+  const MAX_FREQ = 20000;
   const FREQ_RANGE = MAX_FREQ - MIN_FREQ;
   const analyser_min_freq = 0;
   const analyser_max_freq = audio.sampleRate/2;
@@ -180,48 +180,40 @@ function createFlameNode(audio) {
 function createHissingNode(audio, noise) {
   // Create nodes that will make up `Hissing`
   let nodes = {
-    hip: new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: { frequency: 1000 } }),
+    hip: new BiquadFilterNode(audio, { type: "highpass", frequency: 1000, Q: 0 }),
 
     lop: new AudioWorkletNode(audio, 'one-pole-lowpass', { parameterData: { frequency: 1 } }),
     preamp: new GainNode(audio, { gain: 10 }),
-    squared: audio.createGain(),
-    to_the_fourth_power: audio.createGain(),
+    squared: new AudioWorkletNode(audio, 'squared'),
+    to_the_fourth_power: new AudioWorkletNode(audio, 'squared'),
     makeup: new GainNode(audio, { gain: 600.0 }),
 
-    output: audio.createGain(),
+    output: new AudioWorkletNode(audio, 'multiply', { numberOfInputs: 2 }),
   };
 
   // Connect nodes
   noise.connect(nodes.hip)
-    .connect(nodes.output);
+    .connect(nodes.output, 0, 0);
 
   noise.connect(nodes.lop)
     .connect(nodes.preamp)
     .connect(nodes.squared)
     .connect(nodes.to_the_fourth_power)
     .connect(nodes.makeup)
-    .connect(nodes.output.gain);
-
-  nodes.preamp.connect(nodes.squared.gain);
-  nodes.squared.connect(nodes.to_the_fourth_power.gain);
+    .connect(nodes.output, 0, 1);
 
   return nodes;
 }
 
 function createLappingNode(audio, noise) {
-  const bp_gain = new GainNode(audio, { gain: 100 });
-
-  const bp_lo = new AudioWorkletNode(audio, 'one-pole-lowpass', { parameterData: { frequency: 35 }});
-  const bp_hi = new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: { frequency: 25 }});
-
   const output = noise
-    .connect(bp_lo)
-    .connect(bp_hi)
-    .connect(bp_gain)
-    .connect(new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: {frequency: 25} }))
+    .connect(new BiquadFilterNode(audio, { type: "lowpass", frequency: 30 + 5, Q: 0 }))
+    .connect(new BiquadFilterNode(audio, { type: "highpass", frequency: 30 - 5, Q: 0 }))
+    .connect(new GainNode(audio, { gain: 100 }))
+    .connect(new BiquadFilterNode(audio, { type: "highpass", frequency: 25, Q: 0 }))
     .connect(new WaveShaperNode(audio, { curve: Float32Array.from([-0.9, 0.9]) }))
-    .connect(new AudioWorkletNode(audio, 'one-pole-highpass', { parameterData: {frequency: 25} }))
+    .connect(new BiquadFilterNode(audio, { type: "highpass", frequency: 25, Q: 0 }))
     .connect(new GainNode(audio, { gain: 0.6 }));
 
-  return { bp_lo, bp_hi, bp_gain, output };
+  return { output };
 }

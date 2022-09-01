@@ -151,7 +151,33 @@ class ClipProcessor extends AudioWorkletProcessor {
   }
 }
 
+class SquaredProcessor extends AudioWorkletProcessor {
+  process (inputs, outputs, parameters) {
+    const channel_in = inputs[0][0];
+    const channel_out = outputs[0][0];
+
+    for (let i = 0; i < channel_out.length; i+=1) {
+      channel_out[i] = channel_in[i] * channel_in[i];
+    }
+
+    return true;
+  }
+}
+
+class MultiplyProcessor extends AudioWorkletProcessor {
+  process (inputs, outputs, parameters) {
+    if (!inputs[1][0]) return true;
+    for (let i = 0; i < outputs[0][0].length; i+=1) {
+      outputs[0][0][i] = inputs[0][0][i] * inputs[1][0][i];
+    }
+
+    return true;
+  }
+}
+
 registerProcessor('white-noise-processor', WhiteNoiseProcessor);
 registerProcessor('one-pole-lowpass', OnePoleProcessor);
 registerProcessor('one-pole-highpass', OnePoleHighpassProcessor);
 registerProcessor('clip', ClipProcessor);
+registerProcessor('squared', SquaredProcessor);
+registerProcessor('multiply', MultiplyProcessor);

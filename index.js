@@ -67,12 +67,22 @@ function makeAnalyser(name, audio, node, timeDomain) {
   canvas.height = 256;
   const ctx = canvas.getContext("2d");
 
-  const analyser = audio.createAnalyser();
-  node.connect(analyser);
+  const analyser = node
+    .connect(new AnalyserNode(audio, {
+      maxDecibels: -20,
+      minDecibels: -100,
+      fftSize: 1024,
+    }));
 
-  analyser.fftSize = 512;
   const buffer_len = analyser.frequencyBinCount;
   const data_array = new Uint8Array(buffer_len);
+
+  const MIN_FREQ = 0;
+  const MAX_FREQ = 19000;
+  const FREQ_RANGE = MAX_FREQ - MIN_FREQ;
+  const analyser_min_freq = 0;
+  const analyser_max_freq = audio.sampleRate/2;
+  const analyser_range = analyser_max_freq - analyser_min_freq;
 
   // Initial canvas clear
   ctx.fillStyle = `rgb(0, 0, 0)`;
@@ -80,20 +90,47 @@ function makeAnalyser(name, audio, node, timeDomain) {
 
   let x = 0;
   const draw = () => {
+    if (audio.state === 'suspended') {
+      requestAnimationFrame(draw);
+      return;
+    }
+
     // Render Frequency data
-    //const x = Math.floor(audio.currentTime * 10) % canvas.width;
     analyser.getByteFrequencyData(data_array);
 
     ctx.fillStyle = `rgb(200, 50, 50)`;
     ctx.fillRect(x + 1, 0, 1, canvas.height);
 
-    for (let i = 0; i < buffer_len; i += 1) {
-      const value = data_array[i];
+    for (let y = 0; y < canvas.height; y += 1) {
+      const index = Math.floor((y / canvas.height) * MAX_FREQ / analyser_max_freq);
+      const value = data_array[y];
 
-      ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
+      const PALETTE = [
+        [0x00, 0x00, 0x00],
+        [0x2B, 0x12, 0x00],
+        [0x8D, 0x1E, 0x00],
+        [0xCF, 0x5C, 0x00],
+        [0xF1, 0xD2, 0x6C],
+        [0xFF, 0xFF, 0xFF],
+      ];
+      const PALETTE_BUCKET_SIZE = 256 / (PALETTE.length - 1);
+      const palette_index = Math.floor(value / PALETTE_BUCKET_SIZE);
+      const c0 = PALETTE[palette_index];
+      const c1 = PALETTE[palette_index + 1];
+
+      // How far we are from the first color
+      const d0 = (value % PALETTE_BUCKET_SIZE) / PALETTE_BUCKET_SIZE;
+
+      const color = [
+        c0[0] * (1 - d0) + c1[0] * d0,
+        c0[1] * (1 - d0) + c1[1] * d0,
+        c0[2] * (1 - d0) + c1[2] * d0,
+      ];
+
+      ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
 
       // Render with the highest frequency at the top
-      ctx.fillRect(x, canvas.height - i - 1, 1, 1);
+      ctx.fillRect(x, canvas.height - y - 1, 1, 1);
     }
 
     x += 1;

@@ -64,61 +64,40 @@ function makeAnalyser(name, audio, node, timeDomain) {
   const div = document.createElement("div");
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
-  canvas.height = 200;
+  canvas.height = 256;
   const ctx = canvas.getContext("2d");
 
   const analyser = audio.createAnalyser();
   node.connect(analyser);
 
-  analyser.fftSize = 2048;
+  analyser.fftSize = 512;
   const buffer_len = analyser.frequencyBinCount;
   const data_array = new Uint8Array(buffer_len);
 
+  // Initial canvas clear
+  ctx.fillStyle = `rgb(0, 0, 0)`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  let x = 0;
   const draw = () => {
-    // Clear canvas
-    ctx.fillStyle = 'rgb(200, 200, 200)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
     // Render Frequency data
+    //const x = Math.floor(audio.currentTime * 10) % canvas.width;
     analyser.getByteFrequencyData(data_array);
 
-    ctx.lineWidth = 2;
-    ctx.beginPath();
+    ctx.fillStyle = `rgb(200, 50, 50)`;
+    ctx.fillRect(x + 1, 0, 1, canvas.height);
 
-    const slice_width = canvas.width / buffer_len;
-    let x = 0;
     for (let i = 0; i < buffer_len; i += 1) {
-      const height = data_array[i] / 256 * canvas.height;
+      const value = data_array[i];
 
-      ctx.fillStyle = `rgb(${Math.floor(height + 100)}, 50, 50)`;
-      ctx.fillRect(x, canvas.height - height/2, slice_width, height/2);
+      ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
 
-      x += slice_width;
+      // Render with the highest frequency at the top
+      ctx.fillRect(x, canvas.height - i - 1, 1, 1);
     }
 
-    // Render Time Domain data
-    analyser.getByteTimeDomainData(data_array);
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgb(0, 0, 0)';
-    ctx.beginPath();
-
-    x = 0;
-    for (let i = 0; i < buffer_len; i += 1) {
-      const y = data_array[i] / 128 * canvas.height / 2;
-
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-
-      x += slice_width;
-    }
-
-    ctx.lineTo(canvas.width, canvas.height/2);
-    ctx.stroke();
-
+    x += 1;
+    x %= canvas.width;
     requestAnimationFrame(draw);
   };
   requestAnimationFrame(draw);

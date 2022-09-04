@@ -1,12 +1,33 @@
 class WhiteNoiseProcessor extends AudioWorkletProcessor {
+  super(options) {
+    super(options);
+
+    if (options.processorOptions.duration) {
+      this.end_time_ = currentFrame + options.processorOptions.duration * sampleRate;
+    } else {
+      this.end_time_ = null;
+    }
+  }
+
   process (inputs, outputs, parameters) {
     const output = outputs[0]
     output.forEach((channel) => {
       for (let i = 0; i < channel.length; i+=1) {
-        channel[i] = Math.random() * 2 - 1;
+        if (this.end_time_ === null || currentFrame + i < this.end_time_) {
+          channel[i] = Math.random() * 2 - 1;
+        } else {
+          channel[i] = Math.random() * 0;
+        }
       }
     })
-    return true;
+
+    if (this.end_time_ === null) {
+      // keep playing forever
+      return true;
+    } else {
+      // stop playing after we reach the end time
+      return currentFrame < this.end_time_;
+    }
   }
 }
 

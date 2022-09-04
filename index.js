@@ -9,6 +9,27 @@ async function get_audio() {
   return _audio_global;
 }
 
+async function play_lightning_sound() {
+  const audio = await get_audio();
+
+  const duration = 2.5;
+
+  let lightning = new AudioWorkletNode(audio, 'white-noise-processor', { processorOptions: { duration } })
+    .connect(new BiquadFilterNode(audio, { type: "lowpass", frequency: 400, Q: 0 }))
+    .connect(new GainNode(audio, { gain: 4 }))
+    .connect(new AudioWorkletNode(audio, 'squared'))
+    .connect(new GainNode(audio, { gain: 4 }))
+    .connect(new GainNode(audio));
+
+  // 0.0001 instead of 0.0 because `exponentialRamp` doesn't support `0.0`
+  lightning.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + duration);
+  lightning.gain.setValueAtTime(0.0, audio.currentTime + duration);
+
+  lightning
+    .connect(new BiquadFilterNode(audio, { type: "lowpass", frequency: 300, Q: 0 }))
+    .connect(audio.destination);
+}
+
 async function play_fire_sound() {
   const audio = await get_audio();
 

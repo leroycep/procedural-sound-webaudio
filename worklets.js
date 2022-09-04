@@ -1,5 +1,5 @@
 class WhiteNoiseProcessor extends AudioWorkletProcessor {
-  super(options) {
+  constructor(options) {
     super(options);
 
     if (options.processorOptions.duration) {

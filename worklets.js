@@ -3,9 +3,9 @@ class WhiteNoiseProcessor extends AudioWorkletProcessor {
     super(options);
 
     if (options.processorOptions.duration) {
-      this.end_time_ = currentFrame + options.processorOptions.duration * sampleRate;
+      this.end_frame_ = currentFrame + options.processorOptions.duration * sampleRate;
     } else {
-      this.end_time_ = null;
+      this.end_frame_ = null;
     }
   }
 
@@ -13,7 +13,7 @@ class WhiteNoiseProcessor extends AudioWorkletProcessor {
     const output = outputs[0]
     output.forEach((channel) => {
       for (let i = 0; i < channel.length; i+=1) {
-        if (this.end_time_ === null || currentFrame + i < this.end_time_) {
+        if (this.end_frame_ === null || currentFrame + i < this.end_frame_) {
           channel[i] = Math.random() * 2 - 1;
         } else {
           channel[i] = Math.random() * 0;
@@ -21,12 +21,12 @@ class WhiteNoiseProcessor extends AudioWorkletProcessor {
       }
     })
 
-    if (this.end_time_ === null) {
+    if (this.end_frame_ === null) {
       // keep playing forever
       return true;
     } else {
       // stop playing after we reach the end time
-      return currentFrame < this.end_time_;
+      return currentFrame < this.end_frame_;
     }
   }
 }
@@ -177,6 +177,12 @@ class SquaredProcessor extends AudioWorkletProcessor {
     const channel_in = inputs[0][0];
     const channel_out = outputs[0][0];
 
+    // SquaredProcessor only transforms it's input, so it should be removed
+    // once all of it's inputs are inactive
+    if (!channel_in) {
+      return false;
+    }
+
     for (let i = 0; i < channel_out.length; i+=1) {
       channel_out[i] = channel_in[i] * channel_in[i];
     }
@@ -187,7 +193,10 @@ class SquaredProcessor extends AudioWorkletProcessor {
 
 class MultiplyProcessor extends AudioWorkletProcessor {
   process (inputs, outputs, parameters) {
-    if (!inputs[1][0]) return true;
+    // MultiplyProcessor only transforms it's input, so it should be removed
+    // once both of it's inputs are inactive
+    if (!inputs[0][0] || !inputs[1][0]) return false;
+
     for (let i = 0; i < outputs[0][0].length; i+=1) {
       outputs[0][0][i] = inputs[0][0][i] * inputs[1][0][i];
     }

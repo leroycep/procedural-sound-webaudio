@@ -1,9 +1,16 @@
 
-window.addEventListener("load", setup);
+let _audio_global = null;
 
-async function setup() {
-  const audio = new AudioContext();
-  await audio.audioWorklet.addModule("worklets.js");
+async function get_audio() {
+  if (_audio_global === null) {
+    _audio_global = new AudioContext();
+    await _audio_global.audioWorklet.addModule("worklets.js");
+  }
+  return _audio_global;
+}
+
+async function play_fire_sound() {
+  const audio = await get_audio();
 
   // Setup noise node
   let flame = createFlameNode(audio);

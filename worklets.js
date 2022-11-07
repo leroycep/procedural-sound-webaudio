@@ -2,7 +2,7 @@ class WhiteNoiseProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
-    if (options.processorOptions.duration) {
+    if (options.processorOptions !== undefined && options.processorOptions.duration) {
       this.end_frame_ = currentFrame + options.processorOptions.duration * sampleRate;
     } else {
       this.end_frame_ = null;
